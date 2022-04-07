@@ -17,11 +17,11 @@ def main():
     gps = []
     imu = []
 
-    bag = rosbag.Bag('/home/liu/bag/imu_pose.bag', "r")
+    bag = rosbag.Bag('/home/liu/2022-04-06-16-29-11.bag', "r")
     count = 0
 
     for topic, msg, t in bag.read_messages():
-        if topic=="imu":
+        if topic=="/imu/data":
             imu.append([msg.header.stamp.to_sec(),msg.linear_acceleration.x,msg.linear_acceleration.y,msg.linear_acceleration.z,\
                 msg.angular_velocity.x,msg.angular_velocity.y,msg.angular_velocity.z,])
         if topic=="current_pose":
@@ -34,10 +34,13 @@ def main():
 
     gps = np.array(gps)
     imu = np.array(imu)
-    np.save('/home/liu/bag/gps.npy', gps)
-    np.save('/home/liu/bag/imu.npy', imu)
-
-    plt.plot(gps[:,0],gps[:,1])
+    np.save('/home/liu/bag/gps0.npy', gps)
+    np.save('/home/liu/bag/imu0.npy', imu)
+    print(imu.shape)
+    plt.plot(imu[:,0],imu[:,1],label='x')
+    plt.plot(imu[:,0],imu[:,2],label='y')
+    plt.plot(imu[:,0],imu[:,3],label='z')
+    plt.legend()
     plt.show()
 
     return
