@@ -4,7 +4,7 @@ import numpy as np
 import gtsam
 import gtsam.utils.plot as gtsam_plot
 import matplotlib.pyplot as plt
-from gtsam.symbol_shorthand import B, V, X, Y
+from gtsam.symbol_shorthand import B, V, X
 
 gps = np.load('/home/liu/bag/gps0.npy') 
 imu = np.load('/home/liu/bag/imu0.npy')
@@ -64,6 +64,7 @@ begin_time = 0
 end_time = 0
 begin_idx = 0
 lastImuT_opt = -1
+
 for p in gps:
     lidarPose = gtsam.Pose3(gtsam.Rot3.Quaternion(*p[4:8]), gtsam.Point3(*p[1:4]))
     end_time = p[0]
@@ -81,7 +82,6 @@ for p in gps:
         graphFactors.add(priorBias)
         # add values
         graphValues.insert(X(0), prevPose_)
-        graphValues.insert(Y(0), lidarPose)
         graphValues.insert(V(0), prevVel_)
         graphValues.insert(B(0), prevBias_)
         # optimize once
@@ -169,9 +169,9 @@ for p in gps:
     prevState_ = gtsam.NavState(prevPose_, prevVel_)
     imuIntegratorOpt_.resetIntegrationAndSetBias(prevBias_)
     key+=1
-    trj0.append([prevPose_.translation()[0],prevPose_.translation()[1]])
-    trj1.append([curPose.translation()[0],curPose.translation()[1]])
-    velocity.append([prevVel_[0],prevVel_[1]])
+    trj0.append([prevPose_.translation()[0],prevPose_.translation()[1],prevPose_.translation()[2]])
+    trj1.append([curPose.translation()[0],curPose.translation()[1],curPose.translation()[2]])
+    velocity.append([prevVel_[0],prevVel_[1],prevVel_[2]])
     print(prevBias_.accelerometer())
     bias.append([prevBias_.accelerometer()[0],prevBias_.accelerometer()[1],prevBias_.accelerometer()[2]])
     #if(key == 100):
@@ -190,13 +190,16 @@ def smooth(input, win):
 
 plt.grid()
 
-if(True):
+if(False):
     plt.scatter(trj0[:,0], trj0[:,1],color='b',s=3, label='imu preintegration')
     plt.scatter(trj1[:,0], trj1[:,1],color='r',s=3, label='prue ndt matching')
 else:
-    plt.plot(bias[:,0],color='r', label='bias x')
-    plt.plot(bias[:,1],color='g', label='bias y')
-    plt.plot(bias[:,2],color='b', label='bias z')
+    #plt.plot(bias[:,0],color='r', label='bias x')
+    #plt.plot(bias[:,1],color='g', label='bias y')
+    #plt.plot(bias[:,2],color='b', label='bias z')
+    plt.plot(velocity[:,0],color='r', label='bias x')
+    plt.plot(velocity[:,1],color='g', label='bias y')
+    plt.plot(velocity[:,2],color='b', label='bias z')
 
 plt.legend() 
 plt.show()
