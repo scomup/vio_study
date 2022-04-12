@@ -4,18 +4,18 @@ import numpy as np
 import gtsam
 import gtsam.utils.plot as gtsam_plot
 import matplotlib.pyplot as plt
-from gtsam.symbol_shorthand import B, V, X
+from gtsam.symbol_shorthand import B, V, X, Y
 
-gps = np.load('/home/liu/bag/gps.npy') 
-imu = np.load('/home/liu/bag/imu.npy')
+gps = np.load('/home/liu/bag/gps0.npy') 
+imu = np.load('/home/liu/bag/imu0.npy')
 
 optimizer = None
 graphFactors = None
 graphValues = None
 lidar2Imu = gtsam.Pose3(gtsam.Rot3.Quaternion(1,0,0,0), gtsam.Point3(0,0,0)) 
 priorPoseNoise  = gtsam.noiseModel.Diagonal.Sigmas(np.array([1e-2, 1e-2, 1e-2, 1e-2, 1e-2, 1e-2]) ) # rad,rad,rad,m, m, m
-priorVelNoise = gtsam.noiseModel.Isotropic.Sigma(3, 1e4) 
-priorBiasNoise = gtsam.noiseModel.Isotropic.Sigma(6, 1e-2) 
+priorVelNoise = gtsam.noiseModel.Isotropic.Sigma(3, 100) 
+priorBiasNoise = gtsam.noiseModel.Isotropic.Sigma(6, 10) 
 correctionNoise = gtsam.noiseModel.Diagonal.Sigmas(np.array([ 0.05, 0.05, 0.05, 0.1, 0.1, 0.1]))
 imuAccBiasN = 6.4356659353532566e-05
 imuGyrBiasN = 3.5640318696367613e-05
@@ -81,6 +81,7 @@ for p in gps:
         graphFactors.add(priorBias)
         # add values
         graphValues.insert(X(0), prevPose_)
+        graphValues.insert(Y(0), lidarPose)
         graphValues.insert(V(0), prevVel_)
         graphValues.insert(B(0), prevBias_)
         # optimize once
@@ -131,13 +132,20 @@ for p in gps:
             continue
         imuIntegratorOpt_.integrateMeasurement(i[1:4], i[4:7], dt)
         lastImuT_opt = imuTime
+        state = imuIntegratorOpt_.predict(prevState_, prevBias_)
+        #state.propState_.pose()
+        trj0.append([state.pose().translation()[0],state.pose().translation()[1]])
     #imuQueOpt.pop_front()
     # add imu factor to graph
     imu_factor = gtsam.ImuFactor(X(key - 1), V(key - 1), X(key), V(key), B(key - 1), imuIntegratorOpt_)
     bias_factor = gtsam.BetweenFactorConstantBias( B(key - 1), B(key), gtsam.imuBias.ConstantBias(), \
         gtsam.noiseModel.Diagonal.Sigmas( np.sqrt(imuIntegratorOpt_.deltaTij())* noiseModelBetweenBias ))
+    #v_factor = gtsam.BetweenFactorPoint3( V(key - 1), V(key), gtsam.Point3(0,0,0), \
+    #    gtsam.noiseModel.Diagonal.Sigmas( np.sqrt(imuIntegratorOpt_.deltaTij())* np.array([0.01,0.01,0.01]) ))
+
     graphFactors.add(imu_factor)
     graphFactors.add(bias_factor)
+    #graphFactors.add(v_factor)
     # add pose factor
     curPose = lidarPose.compose(lidar2Imu)
     pose_factor = gtsam.PriorFactorPose3(X(key), curPose, correctionNoise)
@@ -164,6 +172,7 @@ for p in gps:
     trj0.append([prevPose_.translation()[0],prevPose_.translation()[1]])
     trj1.append([curPose.translation()[0],curPose.translation()[1]])
     velocity.append([prevVel_[0],prevVel_[1]])
+    print(prevBias_.accelerometer())
     bias.append([prevBias_.accelerometer()[0],prevBias_.accelerometer()[1],prevBias_.accelerometer()[2]])
     #if(key == 100):
     #    break
@@ -172,8 +181,8 @@ trj1 = np.array(trj1)
 velocity = np.array(velocity)
 bias = np.array(bias)
 
-v0 = trj0[1:] - np.roll(trj0, 1,axis=0)[1:]
-v1 = trj1[1:] - np.roll(trj1, 1,axis=0)[1:]
+#v0 = trj0[1:] - np.roll(trj0, 1,axis=0)[1:]
+#v1 = trj1[1:] - np.roll(trj1, 1,axis=0)[1:]
 
 def smooth(input, win):
     b=np.ones(win)/win
@@ -181,19 +190,15 @@ def smooth(input, win):
 
 plt.grid()
 
-#plt.scatter(trj0[:,0], trj0[:,1],color='b',s=8, label='imu preintegration')
-#plt.scatter(trj1[:,0], trj1[:,1],color='r',s=8, label='prue ndt matching')
+if(True):
+    plt.scatter(trj0[:,0], trj0[:,1],color='b',s=3, label='imu preintegration')
+    plt.scatter(trj1[:,0], trj1[:,1],color='r',s=3, label='prue ndt matching')
+else:
+    plt.plot(bias[:,0],color='r', label='bias x')
+    plt.plot(bias[:,1],color='g', label='bias y')
+    plt.plot(bias[:,2],color='b', label='bias z')
 
-plt.plot(bias[:,0],color='r', label='bias x')
-plt.plot(bias[:,1],color='g', label='bias y')
-plt.plot(bias[:,2],color='b', label='bias z')
-
-#plt.scatter(trj1[:,0], trj1[:,1],color='r',s=8, label='prue ndt matching')
-
-plt.legend()
-#d0 = trj0[:,0] - smooth(trj0[:,0], 5)
-#d1 = trj1[:,0] - smooth(trj1[:,0], 5)
- 
+plt.legend() 
 plt.show()
 
 
