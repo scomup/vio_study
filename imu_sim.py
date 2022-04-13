@@ -174,4 +174,4 @@ class PreintegrationExample:
 
 
 if __name__ == '__main__':
-    PreintegrationExample().run()
+    PreintegrationExample(bias=gtsam.imuBias.ConstantBias(np.array([0,0,0]), np.array([0,0,0]))).run()

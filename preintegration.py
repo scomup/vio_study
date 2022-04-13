@@ -37,7 +37,7 @@ imu_params.setIntegrationCovariance(integration_error_cov)
     # gyro white noise in continuous
 imu_params.setGyroscopeCovariance(measured_omega_cov)
 imu_params.setOmegaCoriolis(np.zeros(3))
-imuIntegratorOpt_ = gtsam.PreintegratedImuMeasurements(imu_params, gtsam.imuBias.ConstantBias())
+imuIntegratorOpt = gtsam.PreintegratedImuMeasurements(imu_params, gtsam.imuBias.ConstantBias())
 
 def resetOptimization():
     global optimizer
@@ -45,7 +45,7 @@ def resetOptimization():
     global graphValues
     optParameters = gtsam.ISAM2Params()
     optParameters.setRelinearizeThreshold(0.1)
-    optParameters.setRelinearizeSkip(1)
+    #optParameters.setRelinearizeSkip(1)
     optimizer = gtsam.ISAM2(optParameters)
     graphFactors = gtsam.NonlinearFactorGraph()
     graphValues = gtsam.Values()
@@ -56,9 +56,9 @@ trj1 = []
 velocity = []
 bias = []
 first = True
-prevPose_ = None
-prevVel_ = None
-prevBias_ = None
+prevPose = None
+prevVel = None
+prevBias = None
 key = None
 begin_time = 0
 end_time = 0
@@ -71,25 +71,25 @@ for p in gps:
     if(first):
         resetOptimization()
         begin_time = p[0]
-        prevPose_ = lidarPose.compose(lidar2Imu)
-        priorPose = gtsam.PriorFactorPose3(X(0), prevPose_, priorPoseNoise)
+        prevPose = lidarPose.compose(lidar2Imu)
+        priorPose = gtsam.PriorFactorPose3(X(0), prevPose, priorPoseNoise)
         #.add(priorPose)
-        prevVel_ = gtsam.Point3(0,0,0)
-        priorVel = gtsam.PriorFactorPoint3(V(0), prevVel_, priorVelNoise)
+        prevVel = gtsam.Point3(0,0,0)
+        priorVel = gtsam.PriorFactorPoint3(V(0), prevVel, priorVelNoise)
         graphFactors.add(priorVel)
-        prevBias_ = gtsam.imuBias.ConstantBias()
-        priorBias = gtsam.PriorFactorConstantBias(B(0), prevBias_, priorBiasNoise)
+        prevBias = gtsam.imuBias.ConstantBias()
+        priorBias = gtsam.PriorFactorConstantBias(B(0), prevBias, priorBiasNoise)
         graphFactors.add(priorBias)
         # add values
-        graphValues.insert(X(0), prevPose_)
-        graphValues.insert(V(0), prevVel_)
-        graphValues.insert(B(0), prevBias_)
+        graphValues.insert(X(0), prevPose)
+        graphValues.insert(V(0), prevVel)
+        graphValues.insert(B(0), prevBias)
         # optimize once
         optimizer.update(graphFactors, graphValues)
         graphFactors.resize(0)
         graphValues.clear()
-        imuIntegratorOpt_.resetIntegrationAndSetBias(prevBias_)
-        prevState_ = gtsam.NavState(prevPose_, prevVel_)
+        imuIntegratorOpt.resetIntegrationAndSetBias(prevBias)
+        prevState_ = gtsam.NavState(prevPose, prevVel)
 
         key = 1
         first = False
@@ -99,16 +99,16 @@ for p in gps:
         updatedVelNoise  = gtsam.noiseModel.Gaussian.Covariance(optimizer.marginalCovariance(V(key-1)))
         updatedBiasNoise = gtsam.noiseModel.Gaussian.Covariance(optimizer.marginalCovariance(B(key-1)))
         resetOptimization()
-        priorPose = gtsam.PriorFactorPose3(X(0), prevPose_, updatedPoseNoise)
+        priorPose = gtsam.PriorFactorPose3(X(0), prevPose, updatedPoseNoise)
         graphFactors.add(priorPose)
-        priorVel = gtsam.PriorFactorPoint3(V(0), prevVel_, updatedVelNoise)
+        priorVel = gtsam.PriorFactorPoint3(V(0), prevVel, updatedVelNoise)
         graphFactors.add(priorVel)
-        priorBias = gtsam.PriorFactorConstantBias(B(0), prevBias_, updatedBiasNoise)
+        priorBias = gtsam.PriorFactorConstantBias(B(0), prevBias, updatedBiasNoise)
         graphFactors.add(priorBias)
         # add values
-        graphValues.insert(X(0), prevPose_)
-        graphValues.insert(V(0), prevVel_)
-        graphValues.insert(B(0), prevBias_)
+        graphValues.insert(X(0), prevPose)
+        graphValues.insert(V(0), prevVel)
+        graphValues.insert(B(0), prevBias)
         # optimize once
         optimizer.update(graphFactors, graphValues)
         graphFactors.resize(0)
@@ -130,18 +130,21 @@ for p in gps:
             dt = imuTime - lastImuT_opt
         if dt <= 0:
             continue
-        imuIntegratorOpt_.integrateMeasurement(i[1:4], i[4:7], dt)
+        imuIntegratorOpt.integrateMeasurement(i[1:4], i[4:7], dt)
+        imuIntegratorOpt.print()
         lastImuT_opt = imuTime
-        state = imuIntegratorOpt_.predict(prevState_, prevBias_)
+        state = imuIntegratorOpt.predict(prevState_, prevBias)
         #state.propState_.pose()
-        trj0.append([state.pose().translation()[0],state.pose().translation()[1]])
+        trj0.append([state.pose().translation()[0],state.pose().translation()[1],state.pose().translation()[2]])
+    #if(key>=1):
+    #    break
     #imuQueOpt.pop_front()
     # add imu factor to graph
-    imu_factor = gtsam.ImuFactor(X(key - 1), V(key - 1), X(key), V(key), B(key - 1), imuIntegratorOpt_)
+    imu_factor = gtsam.ImuFactor(X(key - 1), V(key - 1), X(key), V(key), B(key - 1), imuIntegratorOpt)
     bias_factor = gtsam.BetweenFactorConstantBias( B(key - 1), B(key), gtsam.imuBias.ConstantBias(), \
-        gtsam.noiseModel.Diagonal.Sigmas( np.sqrt(imuIntegratorOpt_.deltaTij())* noiseModelBetweenBias ))
+        gtsam.noiseModel.Diagonal.Sigmas( np.sqrt(imuIntegratorOpt.deltaTij())* noiseModelBetweenBias ))
     #v_factor = gtsam.BetweenFactorPoint3( V(key - 1), V(key), gtsam.Point3(0,0,0), \
-    #    gtsam.noiseModel.Diagonal.Sigmas( np.sqrt(imuIntegratorOpt_.deltaTij())* np.array([0.01,0.01,0.01]) ))
+    #    gtsam.noiseModel.Diagonal.Sigmas( np.sqrt(imuIntegratorOpt.deltaTij())* np.array([0.01,0.01,0.01]) ))
 
     graphFactors.add(imu_factor)
     graphFactors.add(bias_factor)
@@ -151,10 +154,10 @@ for p in gps:
     pose_factor = gtsam.PriorFactorPose3(X(key), curPose, correctionNoise)
     graphFactors.add(pose_factor)
     # insert predicted values
-    propState_ = imuIntegratorOpt_.predict(prevState_, prevBias_)
+    propState_ = imuIntegratorOpt.predict(prevState_, prevBias)
     graphValues.insert(X(key), propState_.pose())
     graphValues.insert(V(key), propState_.velocity())
-    graphValues.insert(B(key), prevBias_)
+    graphValues.insert(B(key), prevBias)
     # optimize
     optimizer.update(graphFactors, graphValues)
     optimizer.update()
@@ -162,18 +165,18 @@ for p in gps:
     graphValues.clear()
     #Overwrite the beginning of the preintegration for the next step.
     result = optimizer.calculateEstimate()
-    prevPose_  = result.atPose3(X(key))
-    prevVel_   = result.atPoint3(V(key))
-    prevBias_  = result.atConstantBias(B(key))
+    prevPose  = result.atPose3(X(key))
+    prevVel   = result.atPoint3(V(key))
+    prevBias  = result.atConstantBias(B(key))
     #Reset the optimization preintegration object.
-    prevState_ = gtsam.NavState(prevPose_, prevVel_)
-    imuIntegratorOpt_.resetIntegrationAndSetBias(prevBias_)
+    prevState_ = gtsam.NavState(prevPose, prevVel)
+    imuIntegratorOpt.resetIntegrationAndSetBias(prevBias)
     key+=1
-    trj0.append([prevPose_.translation()[0],prevPose_.translation()[1],prevPose_.translation()[2]])
+    trj0.append([prevPose.translation()[0],prevPose.translation()[1],prevPose.translation()[2]])
     trj1.append([curPose.translation()[0],curPose.translation()[1],curPose.translation()[2]])
-    velocity.append([prevVel_[0],prevVel_[1],prevVel_[2]])
-    print(prevBias_.accelerometer())
-    bias.append([prevBias_.accelerometer()[0],prevBias_.accelerometer()[1],prevBias_.accelerometer()[2]])
+    velocity.append([prevVel[0],prevVel[1],prevVel[2]])
+    print(prevBias.accelerometer())
+    bias.append([prevBias.accelerometer()[0],prevBias.accelerometer()[1],prevBias.accelerometer()[2]])
     #if(key == 100):
     #    break
 trj0 = np.array(trj0)
@@ -190,9 +193,13 @@ def smooth(input, win):
 
 plt.grid()
 
-if(False):
-    plt.scatter(trj0[:,0], trj0[:,1],color='b',s=3, label='imu preintegration')
-    plt.scatter(trj1[:,0], trj1[:,1],color='r',s=3, label='prue ndt matching')
+if(True):
+    #plt.scatter(trj0[:,0], trj0[:,1],color='b',s=3, label='imu preintegration')
+    #plt.scatter(trj1[:,0], trj1[:,1],color='r',s=3, label='prue ndt matching')
+    #plt.plot(trj0[:,2], label='imu preintegration')
+    plt.plot(trj0[:,2], label='pose z')
+    #plt.plot(velocity[:,2], label='velocity z')
+    #plt.plot(trj0[:,0], label='imu preintegration')
 else:
     #plt.plot(bias[:,0],color='r', label='bias x')
     #plt.plot(bias[:,1],color='g', label='bias y')
