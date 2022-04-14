@@ -3,7 +3,7 @@ import numpy as np
 
 epsilon = 1e-5
 # 3d Rotation Matrix to so3
-def SO3log(mat):
+def logmapSO3(mat):
     rot = Rotation.from_dcm(mat)
     q = rot.as_quat()
     squared_n = np.dot(q[0:3], q[0:3])
@@ -22,7 +22,7 @@ def SO3log(mat):
     return two_atan_nbyw_by_n * q[0:3]
     
 # so3 to 3d Rotation Matrix
-def SO3exp(v):
+def expmapSO3(v):
     theta_sq = np.dot(v, v)
     imag_factor = 0.
     real_factor = 0.
