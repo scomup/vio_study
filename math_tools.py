@@ -59,3 +59,25 @@ def H(theta):
         theta_shew_k = theta_shew_k.dot(theta_shew)
         h += (n/m)*theta_shew_k
     return h
+
+
+# dM33(x)*v/dx
+def funD(x, v, func):
+    A = func(x)
+    D = np.zeros([3,3])
+    delta = 0.0000001
+    for i in range(3):
+        for j in range(3):
+            da = x.copy()
+            da[j] += delta
+            d = (func(da)[i].dot(v) - A[i].dot(v))/delta
+            D[i,j] = d
+    return D
+
+#M = expmapSO3(np.array([1,0.3,0.7]))
+x = np.array([0.,0.,0.])
+v = np.array([1,0.3,0.7])
+D = funD(x,v,expmapSO3)
+D2 = expmapSO3(x).dot(skew(v))
+print(D)
+print(D2)
